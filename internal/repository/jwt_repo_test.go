@@ -154,7 +154,7 @@ func TestCreateUser_Success(t *testing.T) {
     }
     
     if *user.ID != 1 {
-        t.Fatalf("unexpected id: %v", user.Email)
+        t.Fatalf("unexpected id: %v", user.ID)
     }
 
     if err := mock.ExpectationsWereMet(); err != nil {

@@ -8,7 +8,6 @@ import (
 	"gojwt/internal/middleware"
 	"strings"
 	"errors"
-	"fmt"
 )
 
 type userHandler struct {
@@ -69,7 +68,7 @@ func (uh *userHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var login entity.Login
 	err := json.NewDecoder(r.Body).Decode(&login)
 	if err != nil {
-	    fmt.Println(err)
+	   // fmt.Println(err)
 		http.Error(w, "body tidak valid", http.StatusBadRequest)
 		return
 	}
@@ -83,7 +82,7 @@ func (uh *userHandler) Login(w http.ResponseWriter, r *http.Request) {
             json.NewEncoder(w).Encode(*invalidErr)
             return
         } else {
-            fmt.Println(errUser)
+            // fmt.Println(errUser)
             w.Header().Set("Content-Type", "application/json")
             w.WriteHeader(http.StatusBadRequest)
             json.NewEncoder(w).Encode(map[string]string{
@@ -114,7 +113,6 @@ func (uh *userHandler) Profile(w http.ResponseWriter, r *http.Request) {
             json.NewEncoder(w).Encode(*invalidErr)
             return
         } else {
-            fmt.Println(err)
             middleware.JSONError(w, http.StatusBadRequest, "internal server error")
             return
         }

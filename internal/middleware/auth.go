@@ -20,6 +20,40 @@ func JSONError(w http.ResponseWriter, status int, message string) {
     })
 }
 
+func ParseAndValidateToken(tokenString string) (*entity.AccessClaims, error) {
+    token, err := jwt.ParseWithClaims(
+        tokenString,
+        &entity.AccessClaims{},
+        func(token *jwt.Token) (interface{}, error) {
+
+            // Cek signing method
+            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+                return nil, errors.New("unexpected signing method")
+            }
+
+            // Kembalikan secret key
+            return []byte(config.Get().AccessSecret), nil
+        },
+    )
+    
+    // Cek error parsing
+    if err != nil {
+        return nil, err
+    }
+
+    // Cek status valid token
+    if !token.Valid {
+        return nil, errors.New("token is invalid or expired")
+    }
+
+    // Ambil claims
+    claims, ok := token.Claims.(*entity.AccessClaims)
+    if !ok {
+        return nil, errors.New("invalid token claims")
+    }
+    return claims, err
+}
+
 func ValidateBearerToken(r *http.Request) (*entity.AccessClaims, error) {
     // 1. Ambil header Authorization
     authHeader := r.Header.Get("Authorization")
@@ -33,38 +67,13 @@ func ValidateBearerToken(r *http.Request) (*entity.AccessClaims, error) {
         return nil, errors.New("invalid authorization format")
     }
 
-    tokenString := parts[1]
 
     // 3. Parse & verifikasi JWT
-    token, err := jwt.ParseWithClaims(
-        tokenString,
-        &entity.AccessClaims{},
-        func(token *jwt.Token) (interface{}, error) {
-
-            // 3a. Cek signing method
-            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-                return nil, errors.New("unexpected signing method")
-            }
-
-            // 3b. Kembalikan secret key
-            return []byte(config.Get().AccessSecret), nil
-        },
-    )
-
-    // 4. Cek error parsing
+    tokenString := parts[1]
+    claims, err := ParseAndValidateToken(tokenString)
+    
     if err != nil {
         return nil, err
-    }
-
-    // 5. Cek status valid token
-    if !token.Valid {
-        return nil, errors.New("token is invalid or expired")
-    }
-
-    // 6. Ambil claims
-    claims, ok := token.Claims.(*entity.AccessClaims)
-    if !ok {
-        return nil, errors.New("invalid token claims")
     }
 
     return claims, nil

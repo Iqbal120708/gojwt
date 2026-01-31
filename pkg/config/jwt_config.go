@@ -4,7 +4,8 @@ import (
 	"log"
 	"os"
 	"sync"
-
+    "path/filepath"
+	"runtime"
 	"github.com/joho/godotenv"
 )
 
@@ -25,9 +26,21 @@ type Config struct {
     RefreshSecret string
 }
 
+func LoadEnv() error {
+	_, filename, _, _ := runtime.Caller(0)
+
+	dir := filepath.Dir(filename)
+
+	root := filepath.Join(dir, "../..")
+
+	envPath := filepath.Join(root, ".env")
+
+	return godotenv.Load(envPath);
+}
+
 func Load() {
 	once.Do(func() {
-		if err := godotenv.Load(); err != nil {
+		if err := LoadEnv(); err != nil {
 			log.Println("No .env file found, using system env")
 		}
 
