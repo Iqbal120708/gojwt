@@ -15,6 +15,8 @@ type UserRepository interface {
 	GetByEmail(email string) (*entity.User, error)
 	GetByID(id int64) (*entity.User, error)
 	Create(data *entity.User) (*entity.User, error)
+	AddBlacklistToken(user_id int64, refreshToken string) error
+	IsRefreshTokenBlacklisted(token string) (bool, error)
 }
 
 func NewUserRepo(db *sql.DB) *userRepo {
@@ -63,6 +65,44 @@ func (u *userRepo) Create(data *entity.User) (*entity.User, error) {
     }
     
     return u.GetByID(id)
+}
+
+func (u *userRepo) IsRefreshTokenBlacklisted(token string) (bool, error) {
+    query := `SELECT 1 FROM blacklist_token WHERE refresh_token = ?`
+
+    var dummy int
+    err := u.db.QueryRow(query, token).Scan(&dummy)
+
+    if err == sql.ErrNoRows {
+        // token TIDAK ada di blacklist > masih valid
+        return false, nil
+    }
+
+    if err != nil {
+        // error DB
+        return false, err
+    }
+
+    // token ADA di blacklist
+    return true, nil
+}
+
+func (u *userRepo) AddBlacklistToken(userID int64, refreshToken string) error {
+    query := "insert into blacklist_token (user_id, refresh_token) values (?, ?)"
+    
+    _, err := u.db.Exec(query, userID, refreshToken)
+    
+    if (err != nil) {
+        if isDuplicateKey(err) {
+            return &entity.ValidationError{
+                Field: "email",
+                Message: "email already exists",
+            }
+        }
+        return err
+    }
+    
+    return nil
 }
 
 func isDuplicateKey(err error) bool {

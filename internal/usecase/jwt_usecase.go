@@ -13,6 +13,7 @@ type UserUseCase interface {
     Create(user *entity.User) (*entity.User, error)
     Login(login *entity.Login) (*entity.Token, error)
     User(email string) (*entity.User, error)
+    RefreshToken(refreshToken string) (*entity.Token, error)
 }
 
 type userUseCase struct {
@@ -97,6 +98,42 @@ func (uc *userUseCase) User(email string) (*entity.User, error) {
 	}
 	
 	return user, nil
+}
+
+func (uc *userUseCase) RefreshToken(refreshToken string) (*entity.Token, error) {
+    isBlacklisted, err := uc.userRepo.IsRefreshTokenBlacklisted(refreshToken)
+    if err != nil {
+        return nil, err
+    }
+    
+    if isBlacklisted {
+        return nil, &entity.AppError{
+            Code: "token_invalid",
+            Message: "Token is blacklisted.",
+        }
+    }
+    
+    claims, err := security.ParseAndValidateRefreshToken(refreshToken)
+    if err != nil {
+        return nil, err
+    }
+    
+    user, err := uc.userRepo.GetByID(claims.UserID)
+    if err != nil {
+        return nil, err
+    }
+    
+    token, err := security.GenerateTokens(*user.ID, user.Email, *user.Role)
+	if err != nil {
+	    return nil, err
+	}
+	
+	err = uc.userRepo.AddBlacklistToken(*user.ID, refreshToken)
+	if err != nil {
+	    return nil, err
+	}
+	
+	return token, nil
 }
 
 func ToUserResponse(u *entity.User) entity.UserResponse {

@@ -5,9 +5,11 @@ import (
     "time"
     "gojwt/pkg/config"
     "gojwt/internal/entity"
+    "errors"
+    "net/http"
 )
 
-func GenerateTokens(userID int, email, role string) (*entity.Token, error) {
+func GenerateTokens(userID int64, email, role string) (*entity.Token, error) {
     cfg := config.Get()
     
     accessExp := time.Now().Add(15 * time.Minute)
@@ -52,3 +54,52 @@ func GenerateTokens(userID int, email, role string) (*entity.Token, error) {
     }, nil
 }
 
+func ParseAndValidateRefreshToken(refreshToken string) (*entity.RefreshClaims, error) {
+    token, err := jwt.ParseWithClaims(
+        refreshToken,
+        &entity.RefreshClaims{},
+        func(token *jwt.Token) (interface{}, error) {
+
+            // Cek signing method
+            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+                return nil, errors.New("unexpected signing method")
+            }
+
+            // Kembalikan secret key
+            return []byte(config.Get().RefreshSecret), nil
+        },
+    )
+    
+    // Cek error parsing
+    if err != nil {
+        return nil, err
+    }
+
+    // Cek status valid token
+    if !token.Valid {
+        return nil, &entity.AppError{
+            Code: "token_invalid",
+            Message: "token is invalid or expired",
+        }
+    }
+
+    // Ambil claims
+    claims, ok := token.Claims.(*entity.RefreshClaims)
+    if !ok {
+        return nil, errors.New("invalid token claims")
+    }
+    return claims, err
+}
+
+func GenerateRefreshCookie(w http.ResponseWriter, token *entity.Token) {
+    http.SetCookie(w, &http.Cookie{
+        Name:     "refresh_token",
+        Value:    token.Refresh,
+        Path:     "/refresh",
+        HttpOnly: true,
+        Secure:   false,
+        SameSite: http.SameSiteLaxMode,
+    })
+    
+    token.Refresh = ""
+}

@@ -9,6 +9,7 @@ import (
     "gojwt/internal/handler"
     "github.com/gorilla/mux"
     "net/http"
+    "fmt"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
     
     db, err := database.NewMySQL()
     if err != nil {
-        panic(err)
+        panic(fmt.Sprintf("Failed to connect to database: %v", err))
     }
     
     ur := repository.NewUserRepo(db)
@@ -27,6 +28,7 @@ func main() {
     r := mux.NewRouter()
 	r.HandleFunc("/signup", uh.Create).Methods("POST")
 	r.HandleFunc("/login", uh.Login).Methods("POST")
+	r.HandleFunc("/refresh", uh.RefreshToken).Methods("POST")
 	
 	api := r.PathPrefix("/api").Subrouter()
     api.Use(middleware.AuthMiddleware)
