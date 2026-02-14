@@ -68,7 +68,7 @@ func (u *userRepo) Create(data *entity.User) (*entity.User, error) {
 }
 
 func (u *userRepo) IsRefreshTokenBlacklisted(token string) (bool, error) {
-    query := `SELECT 1 FROM blacklist_token WHERE refresh_token = ?`
+    query := `SELECT 1 FROM blacklist_token WHERE refresh_token = ? limit 1`
 
     var dummy int
     err := u.db.QueryRow(query, token).Scan(&dummy)
@@ -93,12 +93,6 @@ func (u *userRepo) AddBlacklistToken(userID int64, refreshToken string) error {
     _, err := u.db.Exec(query, userID, refreshToken)
     
     if (err != nil) {
-        if isDuplicateKey(err) {
-            return &entity.ValidationError{
-                Field: "email",
-                Message: "email already exists",
-            }
-        }
         return err
     }
     

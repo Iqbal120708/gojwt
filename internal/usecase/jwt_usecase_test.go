@@ -5,8 +5,10 @@ import (
     "gojwt/internal/security"
     "gojwt/internal/repository"
 	"gojwt/internal/middleware"
+	"database/sql"
 	"gojwt/pkg/config"
     "testing"
+    "errors"
     "github.com/DATA-DOG/go-sqlmock"
 )
 
@@ -233,6 +235,137 @@ func TestGetUser_Error(t *testing.T) {
     
     if user != nil {
         t.Fatalf("unexpected user: %v", user)
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestRefreshToken_Success(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    refreshToken, _ := security.GenerateRefreshToken(1)
+    
+    repo := repository.NewUserRepo(db)
+    uc := NewUserUseCase(repo)
+    
+    mock.ExpectQuery(`SELECT 1 FROM blacklist_token WHERE refresh_token = \? limit 1`).
+        WithArgs(*refreshToken).
+        WillReturnError(sql.ErrNoRows)
+        
+    // repo get by id
+    rows := sqlmock.NewRows(
+        []string{"id", "name", "email", "role"},
+    ).AddRow(
+        1, "usertest", "test@example.com", "regular",
+    )
+
+    mock.ExpectQuery(`select id, name, email, role from user where id = \?`).
+        WithArgs(1).
+        WillReturnRows(rows)
+        
+    mock.ExpectExec(`insert into blacklist_token`).
+        WithArgs(1, *refreshToken).
+        WillReturnResult(sqlmock.NewResult(1, 1))
+        
+    
+    token, err := uc.RefreshToken(*refreshToken)
+    
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    
+    // validate Access Token
+    claims, err := middleware.ParseAndValidateToken(token.Access)
+    if err != nil {
+        t.Fatalf("unexpected error access token: %v", err)
+    }
+    if claims.Email != "test@example.com" {
+        t.Fatalf("unexpected claims email: %v", claims.Email)
+    }
+    
+    // validate RefreshToken
+    claimsRefresh, err := security.ParseAndValidateRefreshToken(token.Refresh)
+    if err != nil {
+        t.Fatalf("unexpected error access token: %v", err)
+    }
+    if claimsRefresh.UserID != 1 {
+        t.Fatalf("unexpected claims ID: %v", claims.UserID)
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestRefreshToken_Blacklist(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    refreshToken, _ := security.GenerateRefreshToken(1)
+    
+    repo := repository.NewUserRepo(db)
+    uc := NewUserUseCase(repo)
+    
+    rows := sqlmock.NewRows([]string{"1"}).AddRow(1)
+    
+    mock.ExpectQuery(`SELECT 1 FROM blacklist_token WHERE refresh_token = \? limit 1`).
+        WithArgs(*refreshToken).
+        WillReturnRows(rows)
+        
+    token, err := uc.RefreshToken(*refreshToken)
+    
+    if token != nil {
+        t.Fatalf("unexpected token: %v", token)
+    }
+    
+    if err == nil {
+        t.Fatal("unexpected error, got nil")
+    }
+    
+    appErr, ok := err.(*entity.AppError)
+    if !ok {
+        t.Fatalf("expected AppError, got %T", appErr)
+    }
+    
+    if appErr.Code != "token_invalid" {
+        t.Fatalf("expected AppError Code, got %T", appErr.Code)
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestRefreshToken_Error(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    refreshToken, _ := security.GenerateRefreshToken(1)
+    
+    repo := repository.NewUserRepo(db)
+    uc := NewUserUseCase(repo)
+    
+    mock.ExpectQuery(`SELECT 1 FROM blacklist_token WHERE refresh_token = \? limit 1`).
+        WithArgs(*refreshToken).
+        WillReturnError(errors.New("database connection lost"))
+        
+    token, err := uc.RefreshToken(*refreshToken)
+    
+    if token != nil {
+        t.Fatalf("unexpected token: %v", token)
+    }
+    
+    if err == nil {
+        t.Fatal("unexpected error, got nil")
+    }
+    
+    // pastikan error bukan AppError
+    err, ok := err.(*entity.AppError)
+    if ok {
+        t.Fatalf("expected err, got AppError")
     }
     
     if err := mock.ExpectationsWereMet(); err != nil {

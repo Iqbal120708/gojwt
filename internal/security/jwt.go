@@ -9,9 +9,7 @@ import (
     "net/http"
 )
 
-func GenerateTokens(userID int64, email, role string) (*entity.Token, error) {
-    cfg := config.Get()
-    
+func GenerateAccessToken(userID int64, email, role string) (*string, error) {
     accessExp := time.Now().Add(15 * time.Minute)
     accessClaims := &entity.AccessClaims{
         UserID: userID,
@@ -25,12 +23,17 @@ func GenerateTokens(userID int64, email, role string) (*entity.Token, error) {
         },
     }
     
+    cfg := config.Get()
     accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims).
         SignedString([]byte(cfg.AccessSecret))
     if err != nil {
         return nil, err
     }
     
+    return &accessToken, nil
+}
+
+func GenerateRefreshToken(userID int64) (*string, error) {
     refreshExp := time.Now().Add(7 * 24 * time.Hour)
     refreshClaims := &entity.RefreshClaims{
         UserID: userID,
@@ -42,15 +45,30 @@ func GenerateTokens(userID int64, email, role string) (*entity.Token, error) {
         },
     }
     
+    cfg := config.Get()
     refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).
         SignedString([]byte(cfg.RefreshSecret))
     if err != nil {
         return nil, err
     }
     
+    return &refreshToken, nil
+}
+
+func GenerateTokens(userID int64, email, role string) (*entity.Token, error) {
+    accessToken, err := GenerateAccessToken(userID, email, role)
+    if err != nil {
+        return nil, err
+    }
+    
+    refreshToken, err := GenerateRefreshToken(userID)
+    if err != nil {
+        return nil, err
+    }
+    
     return &entity.Token{
-        Access: accessToken,
-        Refresh: refreshToken,
+        Access: *accessToken,
+        Refresh: *refreshToken,
     }, nil
 }
 

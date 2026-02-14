@@ -6,6 +6,7 @@ import (
     "database/sql"
     "github.com/go-sql-driver/mysql"
     "github.com/DATA-DOG/go-sqlmock"
+    "errors"
 )
 
 func TestGetByEmail_Success(t *testing.T) {
@@ -204,6 +205,128 @@ func TestCreateUser_DuplicateKey(t *testing.T) {
     
     if ve.Field != "email" {
         t.Fatalf("expected field email, got %s", ve.Field)
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestAddBlacklistToken_Success(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    repo := NewUserRepo(db)
+
+    mock.ExpectExec(`insert into blacklist_token`).
+        WithArgs(1, "hashrefreshtoken").
+        WillReturnResult(sqlmock.NewResult(1, 1))
+        
+    err := repo.AddBlacklistToken(1, "hashrefreshtoken")
+    
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestAddBlacklistToken_Error(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    repo := NewUserRepo(db)
+
+    mock.ExpectExec(`insert into blacklist_token`).
+        WithArgs(1, "").
+        WillReturnError(&mysql.MySQLError{
+            Number:  1048,
+            Message: "Column 'email' cannot be null",
+        })
+            
+    err := repo.AddBlacklistToken(1, "")
+    
+    if err == nil {
+        t.Fatal("unexpected err, got nil")
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestIsRefreshTokenBlacklisted_True(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    repo := NewUserRepo(db)
+    
+    rows := sqlmock.NewRows([]string{"1"}).AddRow(1)
+    
+    mock.ExpectQuery(`SELECT 1 FROM blacklist_token WHERE refresh_token = \? limit 1`).
+        WithArgs("hashrefreshtoken").
+        WillReturnRows(rows)
+        
+    isBlacklist, err := repo.IsRefreshTokenBlacklisted("hashrefreshtoken")
+    
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    
+    if isBlacklist != true {
+        t.Fatal("unexpected bool, got true")
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestIsRefreshTokenBlacklisted_False(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    repo := NewUserRepo(db)
+    
+    mock.ExpectQuery(`SELECT 1 FROM blacklist_token WHERE refresh_token = \? limit 1`).
+        WithArgs("hashrefreshtokennotfound").
+        WillReturnError(sql.ErrNoRows)
+        
+    isBlacklist, err := repo.IsRefreshTokenBlacklisted("hashrefreshtokennotfound")
+    
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    
+    if isBlacklist != false {
+        t.Fatal("unexpected bool, got false")
+    }
+    
+    if err := mock.ExpectationsWereMet(); err != nil {
+        t.Fatal(err)
+    }
+}
+
+func TestIsRefreshTokenBlacklisted_Error(t *testing.T) {
+    db, mock, _ := sqlmock.New()
+    defer db.Close()
+
+    repo := NewUserRepo(db)
+    
+    mock.ExpectQuery(`SELECT 1 FROM blacklist_token WHERE refresh_token = \? limit 1`).
+        WithArgs("hashrefreshtokennotfound").
+        WillReturnError(errors.New("database connection lost"))
+        
+    isBlacklist, err := repo.IsRefreshTokenBlacklisted("hashrefreshtokennotfound")
+    
+    if err == nil {
+        t.Fatal("unexpected error, got nil")
+    }
+    
+    if isBlacklist != false {
+        t.Fatal("unexpected bool, got false")
     }
     
     if err := mock.ExpectationsWereMet(); err != nil {
