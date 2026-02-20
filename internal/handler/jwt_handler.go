@@ -44,7 +44,7 @@ func (uh *userHandler) Create(w http.ResponseWriter, r *http.Request) {
             return
         } else {
             w.Header().Set("Content-Type", "application/json")
-            w.WriteHeader(http.StatusBadRequest)
+            w.WriteHeader(http.StatusInternalServerError)
             json.NewEncoder(w).Encode(map[string]string{
                 "message": "internal server error",
             })
@@ -52,7 +52,7 @@ func (uh *userHandler) Create(w http.ResponseWriter, r *http.Request) {
         }
     }
     w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusBadRequest)
+    w.WriteHeader(http.StatusCreated)
     json.NewEncoder(w).Encode(map[string]string{
         "message": "user created successfully",
     })
@@ -69,7 +69,6 @@ func (uh *userHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var login entity.Login
 	err := json.NewDecoder(r.Body).Decode(&login)
 	if err != nil {
-	   // fmt.Println(err)
 		http.Error(w, "body tidak valid", http.StatusBadRequest)
 		return
 	}
@@ -83,9 +82,8 @@ func (uh *userHandler) Login(w http.ResponseWriter, r *http.Request) {
             json.NewEncoder(w).Encode(*invalidErr)
             return
         } else {
-            // fmt.Println(errUser)
             w.Header().Set("Content-Type", "application/json")
-            w.WriteHeader(http.StatusBadRequest)
+            w.WriteHeader(http.StatusInternalServerError)
             json.NewEncoder(w).Encode(map[string]string{
                 "message": "internal server error",
             })

@@ -17,11 +17,11 @@ type RefreshClaims struct {
 }
 
 type User struct {
-    ID *int64
-    Name string 
-    Email string
-    Role *string
-    Password string
+    ID       *int64  `json:"id"`
+    Name     string  `json:"name"`
+    Email    string  `json:"email"`
+    Role     *string `json:"role"`
+    Password string  `json:"password"`
 }
 
 type UserResponse struct {
